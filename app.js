@@ -83,15 +83,6 @@ let currentTrackIndex = -1;
 let isPlaying = false;
 let currentObjectURL = null;
 
-// --- Audio Visualizer Variables ---
-let audioCtx;
-let analyser;
-let dataArray;
-let animationId;
-const canvas = document.getElementById('visualizer');
-const canvasCtx = canvas ? canvas.getContext('2d') : null;
-let sourceNode = null;
-
 // --- Helper Functions ---
 function formatTime(seconds) {
     if (isNaN(seconds)) return "0:00";
@@ -114,7 +105,14 @@ function loadTrack(index, startTime = 0) {
     
     currentObjectURL = URL.createObjectURL(track.data);
     audioPlayer.src = currentObjectURL;
-    audioPlayer.currentTime = startTime;
+    
+    // IMPORTANTE: En iOS Safari, debemos esperar a que se carguen los metadatos antes de saltar a un tiempo.
+    audioPlayer.onloadedmetadata = () => {
+        if (startTime > 0) {
+            audioPlayer.currentTime = startTime;
+        }
+    };
+    
     audioPlayer.playbackRate = parseFloat(speedSelect.value);
     
     trackTitleEl.textContent = track.name.replace(/\.[^/.]+$/, ""); // Remove extension
@@ -138,89 +136,22 @@ function togglePlay() {
     if (currentTrackIndex === -1) return;
 
     if (audioPlayer.paused) {
-        initVisualizer(); // Initialize or resume AudioContext
         audioPlayer.play();
         isPlaying = true;
         playPauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
         artworkEl.classList.add('playing');
-        drawVisualizer(); // Start animation loop
     } else {
         audioPlayer.pause();
         isPlaying = false;
         playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
         artworkEl.classList.remove('playing');
-        cancelAnimationFrame(animationId); // Stop animation loop
         
         // Save current time explicitly on pause
         localStorage.setItem('walkplayer_lastTime', audioPlayer.currentTime);
     }
 }
 
-// --- Visualizer Logic ---
-function initVisualizer() {
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        analyser = audioCtx.createAnalyser();
-        
-        // Connect the audio element to the analyser
-        // Handle CORS if needed, though for local blobs it's fine
-        sourceNode = audioCtx.createMediaElementSource(audioPlayer);
-        sourceNode.connect(analyser);
-        analyser.connect(audioCtx.destination);
-        
-        // Configure analyser
-        analyser.fftSize = 256;
-        const bufferLength = analyser.frequencyBinCount;
-        dataArray = new Uint8Array(bufferLength);
-    }
-    
-    if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-    }
-}
 
-function drawVisualizer() {
-    if (!isPlaying || !canvasCtx) return;
-    
-    animationId = requestAnimationFrame(drawVisualizer);
-    
-    analyser.getByteFrequencyData(dataArray);
-    
-    const width = canvas.width;
-    const height = canvas.height;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = 105; // Slightly larger than artwork (200/2 = 100)
-    
-    // Clear canvas
-    canvasCtx.clearRect(0, 0, width, height);
-    
-    const barsCounter = 60; 
-    const step = Math.floor(analyser.frequencyBinCount / barsCounter);
-    
-    for (let i = 0; i < barsCounter; i++) {
-        const dataIndex = i * step;
-        const barHeight = (dataArray[dataIndex] / 255) * 40; // Max extension
-        
-        const rads = (Math.PI * 2) * (i / barsCounter);
-        const x_start = centerX + Math.cos(rads) * radius;
-        const y_start = centerY + Math.sin(rads) * radius;
-        
-        const x_end = centerX + Math.cos(rads) * (radius + barHeight);
-        const y_end = centerY + Math.sin(rads) * (radius + barHeight);
-        
-        canvasCtx.beginPath();
-        canvasCtx.moveTo(x_start, y_start);
-        canvasCtx.lineTo(x_end, y_end);
-        canvasCtx.lineWidth = 3;
-        
-        // Smooth gradient for visualizer bars
-        const hue = (i * (360 / barsCounter) + (Date.now() / 20)) % 360;
-        canvasCtx.strokeStyle = `hsla(${hue}, 80%, 60%, 0.8)`;
-        canvasCtx.lineCap = 'round';
-        canvasCtx.stroke();
-    }
-}
 
 function playNext() {
     if (tracks.length === 0) return;
@@ -271,12 +202,10 @@ function renderPlaylist() {
         
         li.addEventListener('click', () => {
             loadTrack(index);
-            initVisualizer();
             audioPlayer.play();
             isPlaying = true;
             playPauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
             artworkEl.classList.add('playing');
-            drawVisualizer();
         });
         
         playlistEl.appendChild(li);
@@ -370,8 +299,6 @@ clearDbBtn.addEventListener('click', async () => {
         isPlaying = false;
         playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
         artworkEl.classList.remove('playing');
-        cancelAnimationFrame(animationId);
-        if (canvasCtx) canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
         progressBar.value = 0;
         currentTimeEl.textContent = "0:00";
         durationTimeEl.textContent = "0:00";
