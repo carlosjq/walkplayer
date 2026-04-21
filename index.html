@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WalkPlayer</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121212">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="stylesheet" href="styles.css">
+    <!-- Google Fonts for modern typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header>
+            <h1>WalkPlayer</h1>
+            <label for="file-input" class="import-btn">
+                <i class="fa-solid fa-plus"></i> Importar
+            </label>
+            <input type="file" id="file-input" accept="audio/mpeg, audio/mp3" multiple hidden>
+        </header>
+
+        <!-- Current Track Info -->
+        <section class="now-playing">
+            <div class="artwork">
+                <div class="vinyl">
+                    <i class="fa-solid fa-music"></i>
+                </div>
+            </div>
+            <h2 id="track-title" class="track-title">Ningún archivo seleccionado</h2>
+        </section>
+
+        <!-- Progress Bar -->
+        <section class="progress-container">
+            <span id="current-time">0:00</span>
+            <input type="range" id="progress-bar" min="0" max="100" value="0">
+            <span id="duration-time">0:00</span>
+        </section>
+
+        <!-- Main Controls -->
+        <section class="controls">
+            <button id="btn-rewind" class="control-btn secondary" title="Retroceder 15s">
+                <i class="fa-solid fa-rotate-left"></i> 15s
+            </button>
+            <button id="btn-prev" class="control-btn" title="Anterior">
+                <i class="fa-solid fa-backward-step"></i>
+            </button>
+            <button id="btn-play-pause" class="control-btn play-btn" title="Reproducir/Pausar">
+                <i class="fa-solid fa-play"></i>
+            </button>
+            <button id="btn-next" class="control-btn" title="Siguiente">
+                <i class="fa-solid fa-forward-step"></i>
+            </button>
+            <button id="btn-forward" class="control-btn secondary" title="Adelantar 15s">
+                15s <i class="fa-solid fa-rotate-right"></i>
+            </button>
+        </section>
+
+        <!-- Additional Controls -->
+        <section class="extra-controls">
+            <div class="speed-control">
+                <i class="fa-solid fa-gauge-high"></i>
+                <select id="speed-select">
+                    <option value="0.8">0.8x</option>
+                    <option value="1" selected>1.0x</option>
+                    <option value="1.25">1.25x</option>
+                    <option value="1.5">1.5x</option>
+                    <option value="2">2.0x</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- Playlist -->
+        <section class="playlist-section">
+            <div class="playlist-header">
+                <h3>Mi Biblioteca</h3>
+                <button id="btn-clear-db" class="clear-btn" title="Borrar toda la biblioteca">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>
+            <ul id="playlist" class="playlist">
+                <!-- Tracks will be dynamically injected here -->
+                <li class="empty-state">No hay audios. Toca 'Importar' para empezar.</li>
+            </ul>
+        </section>
+
+        <!-- Audio Element (Hidden) -->
+        <audio id="audio-player"></audio>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
