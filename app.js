@@ -246,15 +246,21 @@ speedSelect.addEventListener('change', (e) => {
     localStorage.setItem('walkplayer_speed', e.target.value);
 });
 
+let isDraggingProgressBar = false;
+
 audioPlayer.addEventListener('timeupdate', () => {
     const current = audioPlayer.currentTime;
     const duration = audioPlayer.duration;
     
-    currentTimeEl.textContent = formatTime(current);
-    
-    if (!isNaN(duration)) {
+    if (!isNaN(duration) && duration > 0) {
         durationTimeEl.textContent = formatTime(duration);
-        progressBar.value = (current / duration) * 100;
+    }
+    
+    if (!isDraggingProgressBar) {
+        currentTimeEl.textContent = formatTime(current);
+        if (!isNaN(duration) && duration > 0) {
+            progressBar.value = (current / duration) * 100;
+        }
     }
     
     // Periodically save time (every ~5 seconds) to avoid thrashing localStorage
@@ -265,10 +271,25 @@ audioPlayer.addEventListener('timeupdate', () => {
 
 audioPlayer.addEventListener('ended', playNext);
 
+progressBar.addEventListener('mousedown', () => isDraggingProgressBar = true);
+progressBar.addEventListener('touchstart', () => isDraggingProgressBar = true, { passive: true });
+progressBar.addEventListener('mouseup', () => isDraggingProgressBar = false);
+progressBar.addEventListener('touchend', () => isDraggingProgressBar = false);
+
 progressBar.addEventListener('input', (e) => {
-    const time = (e.target.value / 100) * audioPlayer.duration;
-    audioPlayer.currentTime = time;
-    currentTimeEl.textContent = formatTime(time);
+    isDraggingProgressBar = true; // Fallback
+    if (!isNaN(audioPlayer.duration)) {
+        const time = (e.target.value / 100) * audioPlayer.duration;
+        currentTimeEl.textContent = formatTime(time);
+    }
+});
+
+progressBar.addEventListener('change', (e) => {
+    if (!isNaN(audioPlayer.duration)) {
+        const time = (e.target.value / 100) * audioPlayer.duration;
+        audioPlayer.currentTime = time;
+    }
+    isDraggingProgressBar = false;
 });
 
 fileInput.addEventListener('change', async (e) => {
