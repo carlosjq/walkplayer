@@ -2,11 +2,13 @@
   "name": "WalkPlayer MP3",
   "short_name": "WalkPlayer",
   "description": "Reproductor de MP3 optimizado para caminatas con soporte offline y controles de velocidad.",
-  "start_url": "./index.html",
+  "id": "./",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#0f172a",
   "orientation": "portrait",
+  "categories": ["music", "utilities"],
   "icons": [
     {
       "src": "icon-192.png",

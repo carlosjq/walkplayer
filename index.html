@@ -2,96 +2,64 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="description" content="Reproductor de audios local, privado y preparado para caminatas.">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self';">
     <title>WalkPlayer</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#121212">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <link rel="stylesheet" href="styles.css">
-    <!-- Google Fonts for modern typography -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- FontAwesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Header -->
+    <main class="app-container">
         <header>
             <h1>WalkPlayer</h1>
-            <label for="file-input" class="import-btn">
-                <i class="fa-solid fa-plus"></i> Importar
-            </label>
-            <input type="file" id="file-input" accept="audio/mpeg, audio/mp3" multiple hidden>
+            <label for="file-input" class="import-btn"><span aria-hidden="true">＋</span> Importar</label>
+            <input type="file" id="file-input" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg" multiple hidden>
         </header>
 
-        <!-- Current Track Info -->
-        <section class="now-playing">
-            <div class="artwork">
-                <div class="vinyl">
-                    <i class="fa-solid fa-music"></i>
-                </div>
-            </div>
+        <section class="now-playing" aria-labelledby="track-title">
+            <div class="artwork" aria-hidden="true"><div class="vinyl">♪</div></div>
             <h2 id="track-title" class="track-title">Ningún archivo seleccionado</h2>
+            <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
         </section>
 
-        <!-- Progress Bar -->
-        <section class="progress-container">
+        <section class="progress-container" aria-label="Progreso del audio">
             <span id="current-time">0:00</span>
-            <input type="range" id="progress-bar" min="0" max="100" value="0">
+            <input type="range" id="progress-bar" min="0" max="100" value="0" aria-label="Posición del audio">
             <span id="duration-time">0:00</span>
         </section>
 
-        <!-- Main Controls -->
-        <section class="controls">
-            <button id="btn-rewind" class="control-btn secondary" title="Retroceder 15s">
-                <i class="fa-solid fa-rotate-left"></i> 15s
-            </button>
-            <button id="btn-prev" class="control-btn" title="Anterior">
-                <i class="fa-solid fa-backward-step"></i>
-            </button>
-            <button id="btn-play-pause" class="control-btn play-btn" title="Reproducir/Pausar">
-                <i class="fa-solid fa-play"></i>
-            </button>
-            <button id="btn-next" class="control-btn" title="Siguiente">
-                <i class="fa-solid fa-forward-step"></i>
-            </button>
-            <button id="btn-forward" class="control-btn secondary" title="Adelantar 15s">
-                15s <i class="fa-solid fa-rotate-right"></i>
-            </button>
+        <section class="controls" aria-label="Controles de reproducción">
+            <button id="btn-rewind" class="control-btn secondary" type="button" title="Retroceder 15 segundos" aria-label="Retroceder 15 segundos">↺ 15 s</button>
+            <button id="btn-prev" class="control-btn" type="button" title="Pista anterior" aria-label="Pista anterior">⏮</button>
+            <button id="btn-play-pause" class="control-btn play-btn" type="button" title="Reproducir" aria-label="Reproducir">▶</button>
+            <button id="btn-next" class="control-btn" type="button" title="Pista siguiente" aria-label="Pista siguiente">⏭</button>
+            <button id="btn-forward" class="control-btn secondary" type="button" title="Adelantar 15 segundos" aria-label="Adelantar 15 segundos">15 s ↻</button>
         </section>
 
-        <!-- Additional Controls -->
         <section class="extra-controls">
-            <div class="speed-control">
-                <i class="fa-solid fa-gauge-high"></i>
-                <select id="speed-select">
+            <label class="speed-control" for="speed-select"><span aria-hidden="true">◴</span><span class="sr-only">Velocidad</span>
+                <select id="speed-select" aria-label="Velocidad de reproducción">
                     <option value="0.8">0.8x</option>
                     <option value="1" selected>1.0x</option>
                     <option value="1.25">1.25x</option>
                     <option value="1.5">1.5x</option>
                     <option value="2">2.0x</option>
                 </select>
-            </div>
+            </label>
         </section>
 
-        <!-- Playlist -->
-        <section class="playlist-section">
+        <section class="playlist-section" aria-labelledby="library-title">
             <div class="playlist-header">
-                <h3>Mi Biblioteca</h3>
-                <button id="btn-clear-db" class="clear-btn" title="Borrar toda la biblioteca">
-                    <i class="fa-solid fa-trash-can"></i>
-                </button>
+                <h3 id="library-title">Mi Biblioteca</h3>
+                <button id="btn-clear-db" class="clear-btn" type="button" title="Borrar toda la biblioteca" aria-label="Borrar toda la biblioteca">⌫</button>
             </div>
-            <ul id="playlist" class="playlist">
-                <!-- Tracks will be dynamically injected here -->
-                <li class="empty-state">No hay audios. Toca 'Importar' para empezar.</li>
-            </ul>
+            <ul id="playlist" class="playlist"><li class="empty-state">No hay audios. Toca 'Importar' para empezar.</li></ul>
         </section>
-
-        <!-- Audio Element (Hidden) -->
-        <audio id="audio-player"></audio>
-    </div>
-
-    <script src="app.js"></script>
+        <audio id="audio-player" preload="metadata"></audio>
+    </main>
+    <script src="app.js?v=2"></script>
 </body>
 </html>

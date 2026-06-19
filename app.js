@@ -1,67 +1,14 @@
-// --- IndexedDB Setup ---
 const DB_NAME = 'WalkPlayerDB';
 const STORE_NAME = 'audioFiles';
 const DB_VERSION = 1;
+const POSITION_SAVE_INTERVAL = 5;
+
 let db;
+let tracks = [];
+let currentTrackIndex = -1;
+let currentObjectURL = null;
+let lastSavedPosition = -1;
 
-function initDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        
-        request.onupgradeneeded = (event) => {
-            db = event.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-            }
-        };
-
-        request.onsuccess = (event) => {
-            db = event.target.result;
-            resolve();
-        };
-
-        request.onerror = (event) => reject(event.target.error);
-    });
-}
-
-function saveFileToDB(file) {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([STORE_NAME], 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.add({
-            name: file.name,
-            type: file.type,
-            data: file
-        });
-        
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-function getAllFilesFromDB() {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([STORE_NAME], 'readonly');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.getAll();
-        
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-    });
-}
-
-function clearDB() {
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction([STORE_NAME], 'readwrite');
-        const store = transaction.objectStore(STORE_NAME);
-        const request = store.clear();
-        
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-}
-
-// --- App State & DOM Elements ---
 const audioPlayer = document.getElementById('audio-player');
 const playPauseBtn = document.getElementById('btn-play-pause');
 const prevBtn = document.getElementById('btn-prev');
@@ -77,276 +24,476 @@ const durationTimeEl = document.getElementById('duration-time');
 const progressBar = document.getElementById('progress-bar');
 const artworkEl = document.querySelector('.artwork');
 const clearDbBtn = document.getElementById('btn-clear-db');
+const statusMessageEl = document.getElementById('status-message');
 
-let tracks = [];
-let currentTrackIndex = -1;
-let isPlaying = false;
-let currentObjectURL = null;
+const icons = {
+    play: '▶',
+    pause: 'Ⅱ'
+};
 
-// --- Helper Functions ---
+function initDB() {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onupgradeneeded = (event) => {
+            const database = event.target.result;
+            if (!database.objectStoreNames.contains(STORE_NAME)) {
+                database.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+            }
+        };
+
+        request.onsuccess = (event) => {
+            db = event.target.result;
+            resolve();
+        };
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function saveFileToDB(file) {
+    return new Promise((resolve, reject) => {
+        const transaction = db.transaction(STORE_NAME, 'readwrite');
+        const request = transaction.objectStore(STORE_NAME).add({
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            lastModified: file.lastModified,
+            data: file
+        });
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function getAllFilesFromDB() {
+    return new Promise((resolve, reject) => {
+        const request = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function deleteFileFromDB(id) {
+    return new Promise((resolve, reject) => {
+        const request = db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).delete(id);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
+function clearDB() {
+    return new Promise((resolve, reject) => {
+        const request = db.transaction(STORE_NAME, 'readwrite').objectStore(STORE_NAME).clear();
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+    });
+}
+
 function formatTime(seconds) {
-    if (isNaN(seconds)) return "0:00";
+    if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
     const min = Math.floor(seconds / 60);
     const sec = Math.floor(seconds % 60);
     return `${min}:${sec < 10 ? '0' : ''}${sec}`;
 }
 
-// --- Player Logic ---
-function loadTrack(index, startTime = 0) {
-    if (index < 0 || index >= tracks.length) return;
-    
-    currentTrackIndex = index;
-    const track = tracks[index];
-    
-    // Cleanup previous object url to prevent memory leaks
+function getTrackTitle(track) {
+    return track.name.replace(/\.[^/.]+$/, '');
+}
+
+function currentTrack() {
+    return tracks[currentTrackIndex] ?? null;
+}
+
+function showStatus(message, isError = false) {
+    statusMessageEl.textContent = message;
+    statusMessageEl.classList.toggle('is-error', isError);
+}
+
+function clearStatus() {
+    showStatus('');
+}
+
+function updateControls() {
+    const hasTracks = tracks.length > 0;
+    [playPauseBtn, prevBtn, nextBtn, rewindBtn, forwardBtn].forEach((button) => {
+        button.disabled = !hasTracks;
+    });
+    clearDbBtn.disabled = !hasTracks;
+}
+
+function updateMediaSession() {
+    if (!('mediaSession' in navigator) || !currentTrack()) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+        title: getTrackTitle(currentTrack()),
+        artist: 'WalkPlayer',
+        artwork: [
+            { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
+            { src: 'icon-512.png', sizes: '512x512', type: 'image/png' }
+        ]
+    });
+}
+
+function syncPlaybackUI() {
+    const playing = !audioPlayer.paused && !audioPlayer.ended;
+    playPauseBtn.textContent = playing ? icons.pause : icons.play;
+    playPauseBtn.setAttribute('aria-label', playing ? 'Pausar' : 'Reproducir');
+    playPauseBtn.title = playing ? 'Pausar' : 'Reproducir';
+    artworkEl.classList.toggle('playing', playing);
+
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+    }
+}
+
+function persistCurrentPosition() {
+    if (!currentTrack() || !Number.isFinite(audioPlayer.currentTime)) return;
+    localStorage.setItem('walkplayer_lastTrackId', currentTrack().id);
+    localStorage.setItem('walkplayer_lastTime', String(audioPlayer.currentTime));
+    lastSavedPosition = audioPlayer.currentTime;
+}
+
+function revokeCurrentObjectURL() {
     if (currentObjectURL) {
         URL.revokeObjectURL(currentObjectURL);
+        currentObjectURL = null;
     }
-    
+}
+
+function resetPlayer() {
+    audioPlayer.pause();
+    audioPlayer.removeAttribute('src');
+    audioPlayer.load();
+    revokeCurrentObjectURL();
+    currentTrackIndex = -1;
+    trackTitleEl.textContent = 'Ningún archivo seleccionado';
+    progressBar.value = 0;
+    currentTimeEl.textContent = '0:00';
+    durationTimeEl.textContent = '0:00';
+    syncPlaybackUI();
+}
+
+function loadTrack(index, startTime = 0) {
+    if (index < 0 || index >= tracks.length) return;
+
+    const wasPlaying = !audioPlayer.paused;
+    revokeCurrentObjectURL();
+    currentTrackIndex = index;
+    const track = currentTrack();
     currentObjectURL = URL.createObjectURL(track.data);
     audioPlayer.src = currentObjectURL;
-    
-    // IMPORTANTE: En iOS Safari, debemos esperar a que se carguen los metadatos antes de saltar a un tiempo.
-    audioPlayer.onloadedmetadata = () => {
-        if (startTime > 0) {
-            audioPlayer.currentTime = startTime;
-        }
-    };
-    
-    audioPlayer.playbackRate = parseFloat(speedSelect.value);
-    
-    trackTitleEl.textContent = track.name.replace(/\.[^/.]+$/, ""); // Remove extension
-    
-    // Update playlist UI
-    document.querySelectorAll('.playlist-item').forEach((item, i) => {
-        if (i === index) item.classList.add('active');
-        else item.classList.remove('active');
-    });
+    audioPlayer.playbackRate = Number(speedSelect.value);
+    trackTitleEl.textContent = getTrackTitle(track);
+    lastSavedPosition = -1;
 
-    // Save state
+    audioPlayer.onloadedmetadata = () => {
+        const targetTime = Math.min(Math.max(Number(startTime) || 0, 0), audioPlayer.duration || 0);
+        if (targetTime > 0) audioPlayer.currentTime = targetTime;
+        durationTimeEl.textContent = formatTime(audioPlayer.duration);
+    };
+
     localStorage.setItem('walkplayer_lastTrackId', track.id);
-    localStorage.setItem('walkplayer_lastTime', startTime);
+    localStorage.setItem('walkplayer_lastTime', String(startTime));
+    updateMediaSession();
+    renderPlaylist();
+    clearStatus();
+
+    if (wasPlaying) playCurrent();
+}
+
+async function playCurrent() {
+    if (currentTrackIndex === -1 && tracks.length > 0) loadTrack(0);
+    if (currentTrackIndex === -1) return;
+
+    try {
+        await audioPlayer.play();
+        clearStatus();
+    } catch (error) {
+        syncPlaybackUI();
+        showStatus('No se pudo iniciar el audio. Vuelve a tocar Reproducir.', true);
+        console.error('Playback failed:', error);
+    }
 }
 
 function togglePlay() {
-    if (currentTrackIndex === -1 && tracks.length > 0) {
-        loadTrack(0);
-    }
-    
-    if (currentTrackIndex === -1) return;
-
     if (audioPlayer.paused) {
-        audioPlayer.play();
-        isPlaying = true;
-        playPauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-        artworkEl.classList.add('playing');
+        playCurrent();
     } else {
         audioPlayer.pause();
-        isPlaying = false;
-        playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
-        artworkEl.classList.remove('playing');
-        
-        // Save current time explicitly on pause
-        localStorage.setItem('walkplayer_lastTime', audioPlayer.currentTime);
     }
 }
 
-
-
-function playNext() {
-    if (tracks.length === 0) return;
-    let nextIndex = currentTrackIndex + 1;
-    if (nextIndex >= tracks.length) nextIndex = 0; // Loop back to start
+function playNext(forcePlay = false) {
+    if (!tracks.length) return;
+    const shouldPlay = forcePlay || !audioPlayer.paused;
+    const nextIndex = currentTrackIndex < 0 || currentTrackIndex + 1 >= tracks.length ? 0 : currentTrackIndex + 1;
     loadTrack(nextIndex);
-    if (isPlaying) audioPlayer.play();
+    if (shouldPlay) playCurrent();
 }
 
 function playPrev() {
-    if (tracks.length === 0) return;
-    
-    // If we are more than 3 seconds in, just restart current track
+    if (!tracks.length) return;
     if (audioPlayer.currentTime > 3) {
         audioPlayer.currentTime = 0;
+        persistCurrentPosition();
         return;
     }
-    
-    let prevIndex = currentTrackIndex - 1;
-    if (prevIndex < 0) prevIndex = tracks.length - 1;
-    loadTrack(prevIndex);
-    if (isPlaying) audioPlayer.play();
+
+    const shouldPlay = !audioPlayer.paused;
+    const previousIndex = currentTrackIndex <= 0 ? tracks.length - 1 : currentTrackIndex - 1;
+    loadTrack(previousIndex);
+    if (shouldPlay) playCurrent();
 }
 
 function skipTime(seconds) {
-    audioPlayer.currentTime += seconds;
+    if (!currentTrack() || !Number.isFinite(audioPlayer.duration)) return;
+    audioPlayer.currentTime = Math.min(Math.max(audioPlayer.currentTime + seconds, 0), audioPlayer.duration);
+    persistCurrentPosition();
 }
 
-// --- UI Updates ---
+function isDuplicate(file) {
+    return tracks.some((track) =>
+        track.name === file.name && track.size === file.size && track.lastModified === file.lastModified
+    );
+}
+
 function renderPlaylist() {
-    playlistEl.innerHTML = '';
-    
-    if (tracks.length === 0) {
-        playlistEl.innerHTML = '<li class="empty-state">No hay audios. Toca \'Importar\' para empezar.</li>';
-        trackTitleEl.textContent = "Ningún archivo seleccionado";
+    playlistEl.replaceChildren();
+    updateControls();
+
+    if (!tracks.length) {
+        const emptyState = document.createElement('li');
+        emptyState.className = 'empty-state';
+        emptyState.textContent = "No hay audios. Toca 'Importar' para empezar.";
+        playlistEl.append(emptyState);
         return;
     }
 
     tracks.forEach((track, index) => {
-        const li = document.createElement('li');
-        li.className = 'playlist-item';
-        if (index === currentTrackIndex) li.classList.add('active');
-        
-        li.innerHTML = `
-            <div class="item-icon"><i class="fa-solid fa-music"></i></div>
-            <div class="item-title">${track.name.replace(/\.[^/.]+$/, "")}</div>
-        `;
-        
-        li.addEventListener('click', () => {
+        const item = document.createElement('li');
+        item.className = 'playlist-item';
+        item.classList.toggle('active', index === currentTrackIndex);
+
+        const selectButton = document.createElement('button');
+        selectButton.className = 'track-select';
+        selectButton.type = 'button';
+        selectButton.title = `Reproducir ${getTrackTitle(track)}`;
+        selectButton.setAttribute('aria-label', `Reproducir ${getTrackTitle(track)}`);
+        selectButton.addEventListener('click', () => {
             loadTrack(index);
-            audioPlayer.play();
-            isPlaying = true;
-            playPauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
-            artworkEl.classList.add('playing');
+            playCurrent();
         });
-        
-        playlistEl.appendChild(li);
+
+        const icon = document.createElement('span');
+        icon.className = 'item-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = '♫';
+
+        const title = document.createElement('span');
+        title.className = 'item-title';
+        title.textContent = getTrackTitle(track);
+        selectButton.append(icon, title);
+
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'delete-track-btn';
+        deleteButton.type = 'button';
+        deleteButton.textContent = '×';
+        deleteButton.title = `Eliminar ${getTrackTitle(track)}`;
+        deleteButton.setAttribute('aria-label', `Eliminar ${getTrackTitle(track)}`);
+        deleteButton.addEventListener('click', () => deleteTrack(track));
+
+        item.append(selectButton, deleteButton);
+        playlistEl.append(item);
     });
 }
 
-async function loadLibrary() {
+async function refreshLibrary() {
+    const activeId = currentTrack()?.id;
+    tracks = await getAllFilesFromDB();
+    currentTrackIndex = activeId ? tracks.findIndex((track) => track.id === activeId) : -1;
+    renderPlaylist();
+}
+
+async function deleteTrack(track) {
+    const deletingCurrentTrack = currentTrack()?.id === track.id;
     try {
-        tracks = await getAllFilesFromDB();
-        renderPlaylist();
-        
-        // Restore last played track
-        const lastTrackId = localStorage.getItem('walkplayer_lastTrackId');
-        const lastTime = localStorage.getItem('walkplayer_lastTime') || 0;
-        
-        if (tracks.length > 0) {
-            let trackIndexToLoad = 0;
-            if (lastTrackId) {
-                const index = tracks.findIndex(t => t.id == lastTrackId);
-                if (index !== -1) trackIndexToLoad = index;
-            }
-            loadTrack(trackIndexToLoad, parseFloat(lastTime));
+        await deleteFileFromDB(track.id);
+        if (deletingCurrentTrack) {
+            resetPlayer();
+            localStorage.removeItem('walkplayer_lastTrackId');
+            localStorage.removeItem('walkplayer_lastTime');
         }
-    } catch (err) {
-        console.error("Error loading library:", err);
+        await refreshLibrary();
+        showStatus(`Se eliminó “${getTrackTitle(track)}”.`);
+    } catch (error) {
+        console.error('Delete failed:', error);
+        showStatus('No se pudo eliminar el audio.', true);
     }
 }
 
-// --- Event Listeners ---
+async function loadInitialLibrary() {
+    tracks = await getAllFilesFromDB();
+    renderPlaylist();
+    if (!tracks.length) return;
+
+    const lastTrackId = Number(localStorage.getItem('walkplayer_lastTrackId'));
+    const lastTime = Number(localStorage.getItem('walkplayer_lastTime')) || 0;
+    const savedIndex = tracks.findIndex((track) => track.id === lastTrackId);
+    loadTrack(savedIndex >= 0 ? savedIndex : 0, lastTime);
+}
+
+function setupMediaSession() {
+    if (!('mediaSession' in navigator)) return;
+    const handlers = {
+        play: playCurrent,
+        pause: () => audioPlayer.pause(),
+        previoustrack: playPrev,
+        nexttrack: () => playNext(),
+        seekbackward: (details) => skipTime(-(details.seekOffset || 15)),
+        seekforward: (details) => skipTime(details.seekOffset || 15),
+        seekto: (details) => {
+            if (Number.isFinite(details.seekTime)) audioPlayer.currentTime = details.seekTime;
+        }
+    };
+    Object.entries(handlers).forEach(([action, handler]) => {
+        try {
+            navigator.mediaSession.setActionHandler(action, handler);
+        } catch (_) {
+            // Some browsers expose Media Session but do not implement every action.
+        }
+    });
+}
+
 playPauseBtn.addEventListener('click', togglePlay);
-nextBtn.addEventListener('click', playNext);
+nextBtn.addEventListener('click', () => playNext());
 prevBtn.addEventListener('click', playPrev);
 rewindBtn.addEventListener('click', () => skipTime(-15));
 forwardBtn.addEventListener('click', () => skipTime(15));
 
-speedSelect.addEventListener('change', (e) => {
-    audioPlayer.playbackRate = parseFloat(e.target.value);
-    localStorage.setItem('walkplayer_speed', e.target.value);
+speedSelect.addEventListener('change', (event) => {
+    audioPlayer.playbackRate = Number(event.target.value);
+    localStorage.setItem('walkplayer_speed', event.target.value);
 });
 
 let isDraggingProgressBar = false;
+['pointerdown', 'touchstart'].forEach((eventName) => {
+    progressBar.addEventListener(eventName, () => { isDraggingProgressBar = true; }, { passive: true });
+});
+['pointerup', 'pointercancel', 'touchend'].forEach((eventName) => {
+    progressBar.addEventListener(eventName, () => { isDraggingProgressBar = false; });
+});
 
-audioPlayer.addEventListener('timeupdate', () => {
-    const current = audioPlayer.currentTime;
-    const duration = audioPlayer.duration;
-    
-    if (!isNaN(duration) && duration > 0) {
-        durationTimeEl.textContent = formatTime(duration);
-    }
-    
-    if (!isDraggingProgressBar) {
-        currentTimeEl.textContent = formatTime(current);
-        if (!isNaN(duration) && duration > 0) {
-            progressBar.value = (current / duration) * 100;
-        }
-    }
-    
-    // Periodically save time (every ~5 seconds) to avoid thrashing localStorage
-    if (Math.floor(current) % 5 === 0) {
-        localStorage.setItem('walkplayer_lastTime', current);
+progressBar.addEventListener('input', (event) => {
+    isDraggingProgressBar = true;
+    if (Number.isFinite(audioPlayer.duration)) {
+        currentTimeEl.textContent = formatTime((Number(event.target.value) / 100) * audioPlayer.duration);
     }
 });
 
-audioPlayer.addEventListener('ended', playNext);
-
-progressBar.addEventListener('mousedown', () => isDraggingProgressBar = true);
-progressBar.addEventListener('touchstart', () => isDraggingProgressBar = true, { passive: true });
-progressBar.addEventListener('mouseup', () => isDraggingProgressBar = false);
-progressBar.addEventListener('touchend', () => isDraggingProgressBar = false);
-
-progressBar.addEventListener('input', (e) => {
-    isDraggingProgressBar = true; // Fallback
-    if (!isNaN(audioPlayer.duration)) {
-        const time = (e.target.value / 100) * audioPlayer.duration;
-        currentTimeEl.textContent = formatTime(time);
-    }
-});
-
-progressBar.addEventListener('change', (e) => {
-    if (!isNaN(audioPlayer.duration)) {
-        const time = (e.target.value / 100) * audioPlayer.duration;
-        audioPlayer.currentTime = time;
+progressBar.addEventListener('change', (event) => {
+    if (Number.isFinite(audioPlayer.duration)) {
+        audioPlayer.currentTime = (Number(event.target.value) / 100) * audioPlayer.duration;
+        persistCurrentPosition();
     }
     isDraggingProgressBar = false;
 });
 
-fileInput.addEventListener('change', async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
-    
-    trackTitleEl.textContent = "Importando...";
-    
+audioPlayer.addEventListener('play', syncPlaybackUI);
+audioPlayer.addEventListener('pause', () => {
+    syncPlaybackUI();
+    persistCurrentPosition();
+});
+audioPlayer.addEventListener('timeupdate', () => {
+    const current = audioPlayer.currentTime;
+    const duration = audioPlayer.duration;
+    if (!isDraggingProgressBar) {
+        currentTimeEl.textContent = formatTime(current);
+        if (Number.isFinite(duration) && duration > 0) progressBar.value = (current / duration) * 100;
+    }
+    if (Math.abs(current - lastSavedPosition) >= POSITION_SAVE_INTERVAL) persistCurrentPosition();
+});
+audioPlayer.addEventListener('ended', () => playNext(true));
+audioPlayer.addEventListener('error', () => {
+    syncPlaybackUI();
+    showStatus('No se pudo leer este archivo de audio.', true);
+});
+
+fileInput.addEventListener('change', async (event) => {
+    const files = Array.from(event.target.files);
+    if (!files.length) return;
+
+    let added = 0;
+    let skipped = 0;
+    let failed = 0;
+    showStatus('Importando audios…');
+
     for (const file of files) {
-        if (file.type.startsWith('audio/') || file.name.endsWith('.mp3') || file.name.endsWith('.m4a')) {
+        if (!file.type.startsWith('audio/') && !/\.(mp3|m4a|aac|wav|ogg)$/i.test(file.name)) {
+            skipped += 1;
+            continue;
+        }
+        if (isDuplicate(file)) {
+            skipped += 1;
+            continue;
+        }
+        try {
             await saveFileToDB(file);
+            tracks.push({ name: file.name, size: file.size, lastModified: file.lastModified });
+            added += 1;
+        } catch (error) {
+            console.error('Import failed:', error);
+            failed += 1;
         }
     }
-    
-    await loadLibrary();
-    if (tracks.length > 0 && currentTrackIndex === -1) {
-        loadTrack(0);
-    }
+
+    await refreshLibrary();
+    if (currentTrackIndex === -1 && tracks.length) loadTrack(0);
+    const result = `${added} audio${added === 1 ? '' : 's'} importado${added === 1 ? '' : 's'}${skipped ? `, ${skipped} omitido${skipped === 1 ? '' : 's'}` : ''}${failed ? `, ${failed} con error` : ''}.`;
+    showStatus(result, failed > 0);
+    fileInput.value = '';
 });
 
 clearDbBtn.addEventListener('click', async () => {
-    if (confirm('¿Estás seguro de que quieres borrar todos los audios guardados?')) {
+    if (!confirm('¿Estás seguro de que quieres borrar todos los audios guardados?')) return;
+    try {
         await clearDB();
         tracks = [];
-        currentTrackIndex = -1;
-        audioPlayer.pause();
-        audioPlayer.src = "";
-        isPlaying = false;
-        playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
-        artworkEl.classList.remove('playing');
-        progressBar.value = 0;
-        currentTimeEl.textContent = "0:00";
-        durationTimeEl.textContent = "0:00";
+        resetPlayer();
         localStorage.removeItem('walkplayer_lastTrackId');
         localStorage.removeItem('walkplayer_lastTime');
         renderPlaylist();
+        showStatus('Biblioteca eliminada.');
+    } catch (error) {
+        console.error('Clear library failed:', error);
+        showStatus('No se pudo borrar la biblioteca.', true);
     }
 });
 
-// Save explicit state before unloading
-window.addEventListener('beforeunload', () => {
-    if (currentTrackIndex !== -1) {
-        localStorage.setItem('walkplayer_lastTime', audioPlayer.currentTime);
-    }
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') persistCurrentPosition();
 });
+window.addEventListener('pagehide', persistCurrentPosition);
 
-// --- Initialization ---
 async function init() {
-    await initDB();
-    
-    // Load saved speed
-    const savedSpeed = localStorage.getItem('walkplayer_speed');
-    if (savedSpeed) {
-        speedSelect.value = savedSpeed;
+    try {
+        await initDB();
+        const savedSpeed = localStorage.getItem('walkplayer_speed');
+        if (savedSpeed) speedSelect.value = savedSpeed;
+        audioPlayer.playbackRate = Number(speedSelect.value);
+        setupMediaSession();
+        await loadInitialLibrary();
+        syncPlaybackUI();
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js').catch((error) => {
+                console.error('Service Worker registration failed:', error);
+                showStatus('La interfaz funcionará, pero no se pudo activar el modo sin conexión.', true);
+            });
+        }
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        showStatus('No se pudo abrir la biblioteca local.', true);
     }
-    
-    await loadLibrary();
 }
 
 init();

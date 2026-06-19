@@ -18,7 +18,7 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: linear-gradient(135deg, #0f172a 0%, #020617 100%);
     color: var(--text-primary);
     min-height: 100vh;
@@ -109,26 +109,6 @@ h1 {
     gap: 24px;
     text-align: center;
     position: relative;
-}
-
-.artwork-container {
-    position: relative;
-    width: 300px;
-    height: 300px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-#visualizer {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 300px;
-    height: 300px;
-    z-index: 0;
-    pointer-events: none;
-    filter: drop-shadow(0 0 8px var(--primary-glow));
 }
 
 .artwork {
@@ -241,6 +221,12 @@ input[type="range"]::-webkit-slider-thumb:active {
     transition: all 0.2s;
 }
 
+.control-btn:disabled,
+.clear-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+}
+
 .control-btn:active {
     transform: scale(0.9);
     color: var(--primary-color);
@@ -254,6 +240,7 @@ input[type="range"]::-webkit-slider-thumb:active {
     border-radius: 12px;
     padding: 8px;
     color: var(--text-secondary);
+    white-space: nowrap;
 }
 
 .play-btn {
@@ -267,6 +254,16 @@ input[type="range"]::-webkit-slider-thumb:active {
 .play-btn:active {
     background: #2563eb;
     box-shadow: 0 5px 10px var(--primary-glow);
+}
+
+.status-message {
+    min-height: 1.25rem;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.status-message.is-error {
+    color: #fca5a5;
 }
 
 /* Extra Controls */
@@ -375,7 +372,6 @@ input[type="range"]::-webkit-slider-thumb:active {
     align-items: center;
     padding: 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    cursor: pointer;
     transition: background 0.2s;
     border-radius: 12px;
     margin-bottom: 4px;
@@ -385,7 +381,7 @@ input[type="range"]::-webkit-slider-thumb:active {
     border-bottom: none;
 }
 
-.playlist-item:active {
+.playlist-item:focus-within {
     background: rgba(255, 255, 255, 0.1);
 }
 
@@ -405,6 +401,39 @@ input[type="range"]::-webkit-slider-thumb:active {
     text-align: center;
 }
 
+.track-select {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+}
+
+.delete-track-btn {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    border: 0;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    background: transparent;
+    cursor: pointer;
+    font-size: 1.4rem;
+    line-height: 1;
+}
+
+.delete-track-btn:hover,
+.delete-track-btn:focus-visible {
+    color: var(--danger-color);
+    background: rgba(239, 68, 68, 0.12);
+}
+
 .item-title {
     flex: 1;
     font-size: 0.95rem;
@@ -418,4 +447,50 @@ input[type="range"]::-webkit-slider-thumb:active {
     color: var(--text-secondary);
     padding: 32px 0;
     font-size: 0.9rem;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.import-btn:focus-within {
+    outline: 2px solid #93c5fd;
+    outline-offset: 3px;
+}
+
+@media (max-width: 420px) {
+    .app-container {
+        padding: 20px;
+        gap: 28px;
+    }
+
+    .controls {
+        gap: 8px;
+    }
+
+    .control-btn {
+        width: 44px;
+        height: 44px;
+    }
+
+    .play-btn {
+        width: 66px;
+        height: 66px;
+    }
+
+    .control-btn.secondary {
+        padding: 6px;
+        font-size: 0.8rem;
+    }
 }
