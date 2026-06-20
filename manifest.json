@@ -1,14 +1,14 @@
 {
-  "name": "WalkPlayer MP3",
-  "short_name": "WalkPlayer",
-  "description": "Reproductor de MP3 optimizado para caminatas con soporte offline y controles de velocidad.",
+  "name": "Lector de textos",
+  "short_name": "Lector",
+  "description": "Lector de textos en español y reproductor de audios, offline y optimizado para caminatas.",
   "id": "./",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#0f172a",
   "orientation": "portrait",
-  "categories": ["music", "utilities"],
+  "categories": ["books", "music", "utilities"],
   "icons": [
     {
       "src": "icon-192.png",

@@ -4,25 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#0f172a">
-    <meta name="description" content="Reproductor de audios local, privado y preparado para caminatas.">
+    <meta name="description" content="Lector de textos y reproductor de audios, local y preparado para caminatas.">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self';">
-    <title>WalkPlayer</title>
+    <title>Lector</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <link rel="stylesheet" href="styles.css?v=2">
+    <link rel="stylesheet" href="styles.css?v=3">
 </head>
 <body>
     <main class="app-container">
         <header>
-            <h1>WalkPlayer</h1>
+            <h1>Lector</h1>
             <label for="file-input" class="import-btn"><span aria-hidden="true">＋</span> Importar</label>
-            <input type="file" id="file-input" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg" multiple hidden>
+            <input type="file" id="file-input" accept=".lectura,.json,audio/*,.mp3,.m4a,.aac,.wav,.ogg" multiple hidden>
         </header>
 
         <section class="now-playing" aria-labelledby="track-title">
             <div class="artwork" aria-hidden="true"><div class="vinyl">♪</div></div>
-            <h2 id="track-title" class="track-title">Ningún archivo seleccionado</h2>
+            <h2 id="track-title" class="track-title">Nada seleccionado</h2>
             <p id="status-message" class="status-message" role="status" aria-live="polite"></p>
+        </section>
+
+        <section class="reader" id="reader" hidden aria-label="Texto de la lectura">
+            <div id="reader-text" class="reader-text"></div>
+            <p class="reader-hint">Doble toque en una frase para empezar a leer desde ahí.</p>
         </section>
 
         <section class="progress-container" aria-label="Progreso del audio">
@@ -33,9 +38,9 @@
 
         <section class="controls" aria-label="Controles de reproducción">
             <button id="btn-rewind" class="control-btn secondary" type="button" title="Retroceder 15 segundos" aria-label="Retroceder 15 segundos">↺ 15 s</button>
-            <button id="btn-prev" class="control-btn" type="button" title="Pista anterior" aria-label="Pista anterior">⏮</button>
+            <button id="btn-prev" class="control-btn" type="button" title="Anterior" aria-label="Anterior">⏮</button>
             <button id="btn-play-pause" class="control-btn play-btn" type="button" title="Reproducir" aria-label="Reproducir">▶</button>
-            <button id="btn-next" class="control-btn" type="button" title="Pista siguiente" aria-label="Pista siguiente">⏭</button>
+            <button id="btn-next" class="control-btn" type="button" title="Siguiente" aria-label="Siguiente">⏭</button>
             <button id="btn-forward" class="control-btn secondary" type="button" title="Adelantar 15 segundos" aria-label="Adelantar 15 segundos">15 s ↻</button>
         </section>
 
@@ -56,10 +61,10 @@
                 <h3 id="library-title">Mi Biblioteca</h3>
                 <button id="btn-clear-db" class="clear-btn" type="button" title="Borrar toda la biblioteca" aria-label="Borrar toda la biblioteca">⌫</button>
             </div>
-            <ul id="playlist" class="playlist"><li class="empty-state">No hay audios. Toca 'Importar' para empezar.</li></ul>
+            <ul id="playlist" class="playlist"><li class="empty-state">No hay nada aún. Toca 'Importar' para empezar.</li></ul>
         </section>
         <audio id="audio-player" preload="metadata"></audio>
     </main>
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=3"></script>
 </body>
 </html>

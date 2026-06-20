@@ -494,3 +494,58 @@ select:focus-visible,
         font-size: 0.8rem;
     }
 }
+
+/* ----------------------------- Lectura ------------------------------- */
+.reader {
+    background: var(--surface-color);
+    border: 1px solid var(--surface-border);
+    border-radius: 24px;
+    padding: 20px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.reader-text {
+    position: relative;
+    max-height: 42vh;
+    overflow-y: auto;
+    line-height: 1.75;
+    font-size: 1.08rem;
+    color: var(--text-secondary);
+    padding-right: 8px;
+    scroll-behavior: smooth;
+}
+
+.reader-text::-webkit-scrollbar { width: 6px; }
+.reader-text::-webkit-scrollbar-track { background: transparent; }
+.reader-text::-webkit-scrollbar-thumb { background: var(--surface-border); border-radius: 3px; }
+
+.sentence {
+    border-radius: 6px;
+    padding: 1px 3px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.sentence:active {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.sentence.current {
+    background: rgba(59, 130, 246, 0.28);
+    color: var(--text-primary);
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.4);
+}
+
+.reader-hint {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--surface-border);
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+/* En modo lectura, ocultamos el disco giratorio para dar espacio al texto. */
+body.reading-mode .artwork { display: none; }
+body.reading-mode .now-playing { gap: 8px; }
