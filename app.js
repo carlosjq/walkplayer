@@ -163,14 +163,24 @@ function renderReader(sentences) {
     readerTextEl.replaceChildren();
     sentenceSpans = [];
     currentSentenceIdx = -1;
+    let parrafoActual = null;
+    let pEl = null;
     sentences.forEach((frase, idx) => {
+        // Agrupar por párrafo (campo 'p'); lecturas antiguas sin 'p' van en uno solo.
+        const p = frase.p ?? 0;
+        if (p !== parrafoActual || pEl === null) {
+            pEl = document.createElement('p');
+            pEl.className = 'reader-p';
+            readerTextEl.append(pEl);
+            parrafoActual = p;
+        }
         const span = document.createElement('span');
         span.className = 'sentence';
         span.textContent = frase.t;
         span.dataset.idx = String(idx);
         span.addEventListener('click', () => handleSentenceTap(idx));
-        readerTextEl.append(span);
-        readerTextEl.append(document.createTextNode(' '));
+        pEl.append(span);
+        pEl.append(document.createTextNode(' '));
         sentenceSpans.push(span);
     });
 }

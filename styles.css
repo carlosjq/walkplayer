@@ -520,6 +520,14 @@ select:focus-visible,
 .reader-text::-webkit-scrollbar-track { background: transparent; }
 .reader-text::-webkit-scrollbar-thumb { background: var(--surface-border); border-radius: 3px; }
 
+.reader-p {
+    margin: 0 0 0.9em 0;
+}
+
+.reader-p:last-child {
+    margin-bottom: 0;
+}
+
 .sentence {
     border-radius: 6px;
     padding: 1px 3px;

@@ -1,9 +1,9 @@
-const CACHE_NAME = 'lector-shell-v2';
+const CACHE_NAME = 'lector-shell-v3';
 const APP_SHELL = [
     './',
     './index.html',
-    './styles.css?v=3',
-    './app.js?v=3',
+    './styles.css?v=4',
+    './app.js?v=4',
     './manifest.json',
     './icon-192.png',
     './icon-512.png'
